@@ -1,7 +1,12 @@
 [project]
 name = "cs-alert"
 version = "0.1.0"
-description = "Add your description here"
+description = "Automated Threat Hunting & Playbook API — an intelligent security dashboard that categorizes threats and serves NIST-aligned incident response playbooks."
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.18",
+]
