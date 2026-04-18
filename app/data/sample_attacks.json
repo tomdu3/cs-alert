@@ -1,0 +1,142 @@
+[
+  {
+    "source_ip": "203.0.113.42",
+    "event_type": "web_request",
+    "raw_log": "GET /products?id=1' OR 1=1 -- HTTP/1.1 500 4521 \"Mozilla/5.0\" \"-\"",
+    "target_system": "web-server-01",
+    "timestamp": "2026-04-16T09:14:22Z"
+  },
+  {
+    "source_ip": "203.0.113.42",
+    "event_type": "web_request",
+    "raw_log": "POST /login HTTP/1.1 200 312 username=admin&password=' UNION SELECT username,password FROM users--",
+    "target_system": "web-server-01",
+    "timestamp": "2026-04-16T09:15:03Z"
+  },
+  {
+    "source_ip": "198.51.100.78",
+    "event_type": "web_request",
+    "raw_log": "GET /search?q=1;DROP TABLE users;-- HTTP/1.1 500 0 \"sqlmap/1.7\"",
+    "target_system": "web-server-02",
+    "timestamp": "2026-04-16T10:22:45Z"
+  },
+  {
+    "source_ip": "198.51.100.78",
+    "event_type": "web_request",
+    "raw_log": "GET /api/v1/users?filter=1' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT((SELECT database()),0x3a,FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)-- HTTP/1.1 500 2918",
+    "target_system": "api-gateway-01",
+    "timestamp": "2026-04-16T10:23:11Z"
+  },
+  {
+    "source_ip": "mail-relay.suspicious-domain.xyz",
+    "event_type": "email",
+    "raw_log": "From: it-support@c0mpany-secure.com Subject: URGENT: Your account will be suspended in 24 hours. Click here to verify: http://c0mpany-secure.com/verify?token=abc123 Content-Type: text/html",
+    "target_system": "mail-server-01",
+    "timestamp": "2026-04-16T08:30:00Z"
+  },
+  {
+    "source_ip": "mail-relay.phish-net.ru",
+    "event_type": "email",
+    "raw_log": "From: ceo@company-internal.net Subject: Wire Transfer Needed ASAP - Confidential Body: Please process this wire transfer immediately. New banking details attached. Do not discuss with anyone. Attachment: invoice_update.pdf.exe",
+    "target_system": "mail-server-01",
+    "timestamp": "2026-04-16T11:05:33Z"
+  },
+  {
+    "source_ip": "45.33.32.156",
+    "event_type": "email",
+    "raw_log": "From: hr-department@cornpany.com Subject: Updated Benefits Package - Action Required Body: Dear Employee, please review your updated benefits. Login at https://cornpany-benefits.com/login to confirm your details.",
+    "target_system": "mail-server-01",
+    "timestamp": "2026-04-16T13:42:18Z"
+  },
+  {
+    "source_ip": "10.0.0.55",
+    "event_type": "email",
+    "raw_log": "From: admin@legit-vendor.com Subject: Invoice #38291 Past Due Body: Attached is your overdue invoice. Please open the attached document to review. Attachment: Invoice_38291.docm",
+    "target_system": "mail-server-01",
+    "timestamp": "2026-04-16T14:10:05Z"
+  },
+  {
+    "source_ip": "185.220.101.34",
+    "event_type": "auth_attempt",
+    "raw_log": "sshd[2842]: Failed password for root from 185.220.101.34 port 44822 ssh2 (attempt 1 of 847 in last 300s)",
+    "target_system": "db-server-01",
+    "timestamp": "2026-04-16T02:14:00Z"
+  },
+  {
+    "source_ip": "185.220.101.34",
+    "event_type": "auth_attempt",
+    "raw_log": "sshd[2842]: Failed password for admin from 185.220.101.34 port 44823 ssh2 (attempt 847 of 847 in last 300s) — connection closed by authenticating user",
+    "target_system": "db-server-01",
+    "timestamp": "2026-04-16T02:19:00Z"
+  },
+  {
+    "source_ip": "91.240.118.222",
+    "event_type": "auth_attempt",
+    "raw_log": "RDP: Multiple failed logon attempts detected. User: Administrator Source: 91.240.118.222 Count: 312 Window: 120s EventID: 4625",
+    "target_system": "rdp-gateway-01",
+    "timestamp": "2026-04-16T03:45:22Z"
+  },
+  {
+    "source_ip": "10.10.5.22",
+    "event_type": "endpoint",
+    "raw_log": "Process: powershell.exe PID: 4812 CommandLine: powershell -enc SQBFAHgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAA= Parent: winword.exe PPID: 2104 User: jsmith",
+    "target_system": "workstation-042",
+    "timestamp": "2026-04-16T10:55:00Z"
+  },
+  {
+    "source_ip": "10.10.5.22",
+    "event_type": "network",
+    "raw_log": "DNS query: workstation-042 -> c2-beacon.darkweb.onion.to A record, repeated every 60s for past 4 hours. Bytes out: 45KB/interval",
+    "target_system": "workstation-042",
+    "timestamp": "2026-04-16T14:55:00Z"
+  },
+  {
+    "source_ip": "10.10.3.8",
+    "event_type": "endpoint",
+    "raw_log": "AV Alert: Trojan.GenericKD.46542918 detected in C:\\Users\\mwilson\\AppData\\Local\\Temp\\update_helper.exe SHA256: 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b Hash match in VirusTotal (48/72 detections)",
+    "target_system": "workstation-108",
+    "timestamp": "2026-04-16T16:20:33Z"
+  },
+  {
+    "source_ip": "multiple",
+    "event_type": "network",
+    "raw_log": "Firewall: SYN flood detected on port 443. Source IPs: 12,847 unique addresses. Rate: 2.4M packets/sec (baseline: 15K). GeoIP: 89% from AS12345 (suspicious ASN). Duration: 340s",
+    "target_system": "web-server-01",
+    "timestamp": "2026-04-16T18:00:00Z"
+  },
+  {
+    "source_ip": "multiple",
+    "event_type": "network",
+    "raw_log": "Load Balancer ALERT: Backend pool exhausted. Active connections: 98,412 (capacity: 10,000). HTTP 503 rate: 94%. Upstream: web-server-01, web-server-02 both at 100% CPU",
+    "target_system": "lb-frontend-01",
+    "timestamp": "2026-04-16T18:05:47Z"
+  },
+  {
+    "source_ip": "10.10.1.15",
+    "event_type": "data_access",
+    "raw_log": "DLP Alert: User dbadmin exported 2.4GB from customer_records table via SELECT * query at 02:34 AM local time. Normal access pattern: <50MB/day during business hours. VPN source: personal device",
+    "target_system": "db-server-01",
+    "timestamp": "2026-04-16T02:34:00Z"
+  },
+  {
+    "source_ip": "10.10.1.15",
+    "event_type": "data_access",
+    "raw_log": "SIEM Correlation: User dbadmin accessed HR records (unauthorized department), then financial_reports share, then initiated large cloud storage upload to personal Dropbox. Anomaly score: 94/100",
+    "target_system": "file-server-01",
+    "timestamp": "2026-04-16T02:50:00Z"
+  },
+  {
+    "source_ip": "203.0.113.99",
+    "event_type": "web_request",
+    "raw_log": "GET /admin/config.php?file=../../../etc/passwd HTTP/1.1 200 1847 Path traversal detected by WAF rule 930120",
+    "target_system": "web-server-02",
+    "timestamp": "2026-04-16T12:15:00Z"
+  },
+  {
+    "source_ip": "10.10.2.30",
+    "event_type": "auth_attempt",
+    "raw_log": "Active Directory: Account lockout for svc_backup after 15 failed attempts from 10.10.2.30. Service account — no interactive login expected. Last successful auth: 45 days ago",
+    "target_system": "dc-primary-01",
+    "timestamp": "2026-04-16T04:12:00Z"
+  }
+]

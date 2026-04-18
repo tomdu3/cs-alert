@@ -1,0 +1,718 @@
+[
+  {
+    "id": "PB-SQLI-001",
+    "name": "SQL Injection Response",
+    "threat_category": "sql_injection",
+    "description": "Incident response playbook for SQL injection attacks targeting web applications and APIs. Covers detection, containment, remediation, and hardening.",
+    "phases": [
+      {
+        "name": "Identification",
+        "steps": [
+          {
+            "title": "Review WAF & Application Logs",
+            "description": "Examine Web Application Firewall logs and application server access logs for SQL injection patterns (UNION SELECT, OR 1=1, encoded payloads, error-based injection signatures).",
+            "commands": ["grep -E \"(UNION|SELECT|OR\\s+1=1|DROP\\s+TABLE|information_schema)\" /var/log/nginx/access.log", "tail -f /var/log/waf/modsecurity_audit.log"],
+            "tools": ["WAF Dashboard", "Splunk", "ELK Stack"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Identify Affected Endpoints",
+            "description": "Map all endpoints targeted by the injection attempts. Determine which received successful (200/500) responses vs blocked requests.",
+            "commands": ["awk '{print $7}' access.log | sort | uniq -c | sort -rn | head -20"],
+            "tools": ["Application Inventory", "API Gateway Logs"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Assess Data Exposure",
+            "description": "Determine if the attacker successfully extracted data. Check for abnormal response sizes, database query logs showing unauthorized SELECTs, and any data exfiltration indicators.",
+            "commands": ["SELECT * FROM mysql.general_log WHERE command_type='Query' AND argument LIKE '%UNION%' ORDER BY event_time DESC;"],
+            "tools": ["Database Audit Logs", "DLP System"],
+            "responsible_role": "Database Administrator"
+          }
+        ]
+      },
+      {
+        "name": "Containment",
+        "steps": [
+          {
+            "title": "Block Source IP Addresses",
+            "description": "Add attacker IP addresses to the firewall and WAF block lists immediately.",
+            "commands": ["iptables -A INPUT -s <ATTACKER_IP> -j DROP", "az network nsg rule create --name BlockAttacker --priority 100 --source-address-prefixes <ATTACKER_IP> --access Deny"],
+            "tools": ["Firewall", "WAF", "Cloud Security Groups"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Enable Strict WAF Rules",
+            "description": "Escalate WAF to blocking mode for SQL injection rule sets. Enable paranoia level 2+ on ModSecurity or equivalent.",
+            "commands": ["SecRuleEngine On", "SecRule ARGS \"@detectSQLi\" \"id:1,phase:2,deny,status:403\""],
+            "tools": ["ModSecurity", "AWS WAF", "Cloudflare WAF"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Isolate Affected Database",
+            "description": "If data compromise is confirmed, isolate the affected database from the application tier. Switch to read-only mode or failover to clean replica.",
+            "commands": ["ALTER DATABASE target_db SET READ_ONLY;"],
+            "tools": ["Database Management Console"],
+            "responsible_role": "Database Administrator"
+          }
+        ]
+      },
+      {
+        "name": "Eradication",
+        "steps": [
+          {
+            "title": "Patch Vulnerable Code",
+            "description": "Identify and fix the vulnerable code. Replace string concatenation with parameterised queries / prepared statements.",
+            "commands": [],
+            "tools": ["IDE", "SAST Scanner (SonarQube, Semgrep)"],
+            "responsible_role": "Developer"
+          },
+          {
+            "title": "Rotate Database Credentials",
+            "description": "Rotate all database credentials, API keys, and connection strings that may have been exposed.",
+            "commands": ["ALTER USER 'app_user'@'%' IDENTIFIED BY '<NEW_STRONG_PASSWORD>';"],
+            "tools": ["Secrets Manager", "Vault"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Deploy Input Validation",
+            "description": "Add server-side input validation and output encoding across all affected endpoints. Implement allowlisting for expected parameter formats.",
+            "commands": [],
+            "tools": ["Code Review Tools", "CI/CD Pipeline"],
+            "responsible_role": "Developer"
+          }
+        ]
+      },
+      {
+        "name": "Recovery",
+        "steps": [
+          {
+            "title": "Restore from Clean Backup",
+            "description": "If data was modified or deleted, restore the database from the last known clean backup taken before the attack.",
+            "commands": ["pg_restore --clean --if-exists -d target_db /backups/pre_incident.dump"],
+            "tools": ["Backup System", "Database Tools"],
+            "responsible_role": "Database Administrator"
+          },
+          {
+            "title": "Verify Data Integrity",
+            "description": "Run integrity checks against known-good checksums. Verify row counts and critical data fields match expected values.",
+            "commands": ["SELECT COUNT(*) FROM users;", "CHECKSUM TABLE users, orders, payments;"],
+            "tools": ["Data Validation Scripts"],
+            "responsible_role": "Database Administrator"
+          },
+          {
+            "title": "Re-enable Services",
+            "description": "Gradually re-enable services with enhanced monitoring. Watch for repeat attack attempts from the same or new sources.",
+            "commands": ["systemctl restart nginx", "systemctl restart app-server"],
+            "tools": ["Monitoring Dashboard", "APM"],
+            "responsible_role": "Operations Engineer"
+          }
+        ]
+      },
+      {
+        "name": "Lessons Learned",
+        "steps": [
+          {
+            "title": "Conduct Post-Incident Review",
+            "description": "Hold a blameless post-mortem within 48 hours. Document the timeline, root cause, impact, and response effectiveness.",
+            "commands": [],
+            "tools": ["Incident Report Template", "Meeting Notes"],
+            "responsible_role": "Security Lead"
+          },
+          {
+            "title": "Update Detection Rules",
+            "description": "Improve WAF rules and SIEM detection queries based on the specific attack patterns observed in this incident.",
+            "commands": [],
+            "tools": ["WAF Rule Editor", "SIEM Query Builder"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Schedule Security Testing",
+            "description": "Commission a penetration test focused on SQL injection across all web-facing applications. Add SQLi test cases to the CI/CD pipeline.",
+            "commands": ["sqlmap -u 'https://app.example.com/search?q=test' --batch --risk=3"],
+            "tools": ["sqlmap", "Burp Suite", "OWASP ZAP"],
+            "responsible_role": "Security Analyst"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "PB-PHISH-001",
+    "name": "Phishing Attack Response",
+    "threat_category": "phishing",
+    "description": "Incident response playbook for phishing and social engineering attacks including credential harvesting, BEC (Business Email Compromise), and malicious attachments.",
+    "phases": [
+      {
+        "name": "Identification",
+        "steps": [
+          {
+            "title": "Analyse the Phishing Email",
+            "description": "Examine email headers (SPF, DKIM, DMARC results), sender domain age, embedded URLs, and attachment hashes. Check for typosquatting and lookalike domains.",
+            "commands": ["dig TXT suspicious-domain.com", "whois suspicious-domain.com"],
+            "tools": ["Email Security Gateway", "VirusTotal", "URLScan.io"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Identify Affected Users",
+            "description": "Search email logs to determine all recipients. Check if any users clicked the link or opened the attachment using email gateway tracking and endpoint telemetry.",
+            "commands": ["Get-MessageTrace -SenderAddress attacker@phish.com -StartDate (Get-Date).AddDays(-1)"],
+            "tools": ["Exchange Admin Centre", "Email Gateway", "EDR Console"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Check for Credential Compromise",
+            "description": "If the phishing page harvested credentials, check authentication logs for successful logins from unexpected locations or new devices for affected users.",
+            "commands": [],
+            "tools": ["Azure AD Sign-in Logs", "SIEM", "IdP Dashboard"],
+            "responsible_role": "Identity & Access Management"
+          }
+        ]
+      },
+      {
+        "name": "Containment",
+        "steps": [
+          {
+            "title": "Block Malicious URLs & Domains",
+            "description": "Add the phishing URLs and sender domains to the block list across email gateway, web proxy, and DNS filtering.",
+            "commands": ["sudo pihole -b phishing-domain.com"],
+            "tools": ["Email Gateway", "Web Proxy", "DNS Filter"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Force Password Reset for Affected Users",
+            "description": "Immediately reset passwords and revoke active sessions for any user who entered credentials on the phishing page.",
+            "commands": ["Set-MsolUserPassword -UserPrincipalName user@company.com -ForceChangePassword $true"],
+            "tools": ["Active Directory", "Azure AD", "IAM Console"],
+            "responsible_role": "Identity & Access Management"
+          },
+          {
+            "title": "Quarantine the Phishing Email",
+            "description": "Remove the phishing email from all mailboxes that received it, including those who haven't opened it yet.",
+            "commands": ["Search-Mailbox -Identity * -SearchQuery 'Subject:URGENT: Your account' -DeleteContent"],
+            "tools": ["Exchange Admin", "Google Workspace Admin"],
+            "responsible_role": "Email Administrator"
+          }
+        ]
+      },
+      {
+        "name": "Eradication",
+        "steps": [
+          {
+            "title": "Scan Endpoints for Malware",
+            "description": "If the phishing email contained a malicious attachment, run full endpoint scans on all machines where the attachment was opened.",
+            "commands": ["Start-MpScan -ScanType FullScan"],
+            "tools": ["EDR Platform", "Antivirus Console"],
+            "responsible_role": "Endpoint Security"
+          },
+          {
+            "title": "Review and Revoke OAuth Tokens",
+            "description": "Check if the attacker obtained OAuth consent grants. Revoke any suspicious app permissions granted during the phishing attack.",
+            "commands": [],
+            "tools": ["Azure AD App Registrations", "Google Security Console"],
+            "responsible_role": "Identity & Access Management"
+          }
+        ]
+      },
+      {
+        "name": "Recovery",
+        "steps": [
+          {
+            "title": "Enable MFA for Affected Accounts",
+            "description": "Ensure all affected accounts have multi-factor authentication enabled. Consider phishing-resistant MFA (FIDO2, passkeys).",
+            "commands": [],
+            "tools": ["Azure AD MFA", "Duo", "Okta"],
+            "responsible_role": "Identity & Access Management"
+          },
+          {
+            "title": "Monitor for Follow-up Attacks",
+            "description": "Set up enhanced monitoring for affected user accounts and the attacker infrastructure for 30 days post-incident.",
+            "commands": [],
+            "tools": ["SIEM Alert Rules", "Threat Intelligence Platform"],
+            "responsible_role": "Security Analyst"
+          }
+        ]
+      },
+      {
+        "name": "Lessons Learned",
+        "steps": [
+          {
+            "title": "Update Email Security Policies",
+            "description": "Review and tighten SPF, DKIM, and DMARC policies. Consider implementing BIMI for brand protection.",
+            "commands": [],
+            "tools": ["DNS Management", "Email Security Configuration"],
+            "responsible_role": "Email Administrator"
+          },
+          {
+            "title": "Conduct Phishing Awareness Training",
+            "description": "Run targeted phishing simulation for affected department. Update security awareness training with this incident as a case study.",
+            "commands": [],
+            "tools": ["KnowBe4", "Proofpoint Security Awareness"],
+            "responsible_role": "Security Lead"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "PB-BRUTE-001",
+    "name": "Brute Force Attack Response",
+    "threat_category": "brute_force",
+    "description": "Incident response playbook for brute force and credential stuffing attacks against SSH, RDP, web applications, and Active Directory services.",
+    "phases": [
+      {
+        "name": "Identification",
+        "steps": [
+          {
+            "title": "Analyse Authentication Logs",
+            "description": "Review failed authentication logs to determine the scope: number of attempts, targeted accounts, source IPs, and time window.",
+            "commands": ["journalctl -u sshd | grep 'Failed password' | awk '{print $11}' | sort | uniq -c | sort -rn", "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 1000"],
+            "tools": ["SIEM", "Event Viewer", "Auth Logs"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Check for Successful Compromise",
+            "description": "Determine if any brute-forced account was successfully compromised by correlating failed attempts with subsequent successful logins from the same source.",
+            "commands": ["grep 'Accepted password' /var/log/auth.log | grep '<ATTACKER_IP>'"],
+            "tools": ["SIEM Correlation", "Auth Logs"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Identify Attack Type",
+            "description": "Distinguish between simple brute force (one account, many passwords), password spraying (many accounts, few passwords), and credential stuffing (known credential pairs).",
+            "commands": [],
+            "tools": ["SIEM Analytics", "Log Analysis"],
+            "responsible_role": "Security Analyst"
+          }
+        ]
+      },
+      {
+        "name": "Containment",
+        "steps": [
+          {
+            "title": "Block Attacking IPs",
+            "description": "Block the source IP addresses at the firewall and add them to the fail2ban or equivalent automated blocking system.",
+            "commands": ["fail2ban-client set sshd banip <ATTACKER_IP>", "iptables -A INPUT -s <ATTACKER_IP> -j DROP"],
+            "tools": ["Firewall", "fail2ban", "Cloud Security Groups"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Lock Targeted Accounts",
+            "description": "Temporarily lock any accounts that were specifically targeted, especially privileged accounts (root, Administrator, service accounts).",
+            "commands": ["usermod -L targeted_user", "Disable-ADAccount -Identity targeted_user"],
+            "tools": ["Active Directory", "IAM Console"],
+            "responsible_role": "Identity & Access Management"
+          }
+        ]
+      },
+      {
+        "name": "Eradication",
+        "steps": [
+          {
+            "title": "Enforce Strong Password Policy",
+            "description": "Ensure all targeted accounts meet minimum password complexity requirements. Force password changes for any accounts with weak or commonly-used passwords.",
+            "commands": [],
+            "tools": ["Active Directory GPO", "Password Audit Tools"],
+            "responsible_role": "Identity & Access Management"
+          },
+          {
+            "title": "Implement Rate Limiting",
+            "description": "Configure rate limiting and progressive delays on all authentication endpoints. Set account lockout thresholds.",
+            "commands": [],
+            "tools": ["Application Config", "WAF", "Auth Service"],
+            "responsible_role": "Security Engineer"
+          }
+        ]
+      },
+      {
+        "name": "Recovery",
+        "steps": [
+          {
+            "title": "Unlock & Monitor Accounts",
+            "description": "Unlock previously locked accounts after password resets are confirmed. Set up enhanced monitoring for these accounts.",
+            "commands": ["usermod -U targeted_user"],
+            "tools": ["IAM Console", "SIEM Watchlist"],
+            "responsible_role": "Identity & Access Management"
+          },
+          {
+            "title": "Deploy MFA",
+            "description": "Enable multi-factor authentication on all accounts targeted in the attack, prioritising privileged accounts and remote access services.",
+            "commands": [],
+            "tools": ["MFA Provider", "VPN Configuration"],
+            "responsible_role": "Identity & Access Management"
+          }
+        ]
+      },
+      {
+        "name": "Lessons Learned",
+        "steps": [
+          {
+            "title": "Review Access Architecture",
+            "description": "Evaluate whether SSH/RDP should be exposed to the internet. Consider bastion hosts, VPN-only access, or zero-trust network access.",
+            "commands": [],
+            "tools": ["Network Architecture Review"],
+            "responsible_role": "Security Architect"
+          },
+          {
+            "title": "Implement Threat Intelligence Feeds",
+            "description": "Subscribe to IP reputation feeds and integrate with firewall/IDS to proactively block known malicious sources.",
+            "commands": [],
+            "tools": ["Threat Intelligence Platform", "Firewall Integration"],
+            "responsible_role": "Security Engineer"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "PB-MALW-001",
+    "name": "Malware Infection Response",
+    "threat_category": "malware",
+    "description": "Incident response playbook for malware infections including trojans, ransomware, C2 beacons, and fileless malware on endpoints and servers.",
+    "phases": [
+      {
+        "name": "Identification",
+        "steps": [
+          {
+            "title": "Analyse Malware Indicators",
+            "description": "Collect file hashes, process names, network IOCs (C2 domains/IPs), and registry modifications. Check against threat intelligence databases.",
+            "commands": ["sha256sum /path/to/suspicious_file", "Get-FileHash -Path C:\\suspect.exe -Algorithm SHA256"],
+            "tools": ["VirusTotal", "Hybrid Analysis", "ANY.RUN"],
+            "responsible_role": "Malware Analyst"
+          },
+          {
+            "title": "Determine Infection Vector",
+            "description": "Trace back how the malware entered the environment: phishing email, drive-by download, USB, supply chain, or lateral movement from another compromised host.",
+            "commands": [],
+            "tools": ["EDR Timeline", "Email Gateway Logs", "Proxy Logs"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Scope the Infection",
+            "description": "Search across all endpoints for the same IOCs to determine the full blast radius of the infection.",
+            "commands": [],
+            "tools": ["EDR Threat Hunting", "SIEM IOC Search"],
+            "responsible_role": "Threat Hunter"
+          }
+        ]
+      },
+      {
+        "name": "Containment",
+        "steps": [
+          {
+            "title": "Isolate Infected Endpoints",
+            "description": "Network-isolate all confirmed infected machines using EDR or network segmentation. Maintain management access for investigation.",
+            "commands": [],
+            "tools": ["CrowdStrike Falcon", "SentinelOne", "Carbon Black"],
+            "responsible_role": "Endpoint Security"
+          },
+          {
+            "title": "Block C2 Communications",
+            "description": "Add all identified Command & Control domains and IPs to DNS sinkhole and firewall block lists to prevent data exfiltration.",
+            "commands": ["sudo iptables -A OUTPUT -d <C2_IP> -j DROP"],
+            "tools": ["DNS Sinkhole", "Firewall", "Proxy"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Preserve Forensic Evidence",
+            "description": "Capture memory dumps and disk images from infected systems before remediation for forensic analysis.",
+            "commands": ["dd if=/dev/sda of=/forensics/disk_image.raw bs=4M"],
+            "tools": ["FTK Imager", "Volatility", "KAPE"],
+            "responsible_role": "Forensic Analyst"
+          }
+        ]
+      },
+      {
+        "name": "Eradication",
+        "steps": [
+          {
+            "title": "Remove Malware & Persistence",
+            "description": "Remove malware binaries, scheduled tasks, registry keys, and any other persistence mechanisms identified during analysis.",
+            "commands": ["schtasks /Delete /TN 'MaliciousTask' /F", "reg delete HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MalwareName /f"],
+            "tools": ["EDR Remediation", "Autoruns"],
+            "responsible_role": "Endpoint Security"
+          },
+          {
+            "title": "Patch Exploitation Vector",
+            "description": "If malware entered via a software vulnerability, apply the relevant security patches immediately across all systems.",
+            "commands": [],
+            "tools": ["WSUS", "Patch Management System"],
+            "responsible_role": "System Administrator"
+          }
+        ]
+      },
+      {
+        "name": "Recovery",
+        "steps": [
+          {
+            "title": "Rebuild Compromised Systems",
+            "description": "For critical infections, reimage affected systems from known-good base images rather than attempting in-place cleanup.",
+            "commands": [],
+            "tools": ["MDT", "SCCM", "Ansible"],
+            "responsible_role": "System Administrator"
+          },
+          {
+            "title": "Restore Data & Validate",
+            "description": "Restore user data from clean backups. Scan all restored files to ensure no reinfection from backup data.",
+            "commands": [],
+            "tools": ["Backup System", "AV Scanner"],
+            "responsible_role": "System Administrator"
+          }
+        ]
+      },
+      {
+        "name": "Lessons Learned",
+        "steps": [
+          {
+            "title": "Update Detection Signatures",
+            "description": "Add all IOCs from this incident to SIEM detection rules, EDR custom indicators, and email gateway block lists.",
+            "commands": [],
+            "tools": ["SIEM", "EDR Console", "YARA Rules"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Review Endpoint Hardening",
+            "description": "Assess application allowlisting, script execution policies, and macro restrictions. Implement recommendations from the incident analysis.",
+            "commands": [],
+            "tools": ["Group Policy", "AppLocker", "CIS Benchmarks"],
+            "responsible_role": "Security Architect"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "PB-DDOS-001",
+    "name": "DDoS Attack Response",
+    "threat_category": "ddos",
+    "description": "Incident response playbook for Distributed Denial of Service attacks including SYN floods, HTTP floods, DNS amplification, and application-layer attacks.",
+    "phases": [
+      {
+        "name": "Identification",
+        "steps": [
+          {
+            "title": "Confirm DDoS vs Legitimate Traffic",
+            "description": "Analyse traffic patterns to distinguish between a DDoS attack and legitimate traffic spikes (marketing campaign, viral content). Check source IP diversity, request patterns, and protocol distribution.",
+            "commands": ["tcpdump -i eth0 -c 10000 -w /tmp/capture.pcap", "netstat -an | awk '{print $5}' | sort | uniq -c | sort -rn | head -20"],
+            "tools": ["Wireshark", "NetFlow Analyser", "CDN Dashboard"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Classify Attack Type",
+            "description": "Determine if the attack is volumetric (bandwidth exhaustion), protocol-based (SYN/ACK flood), or application-layer (HTTP flood, slowloris).",
+            "commands": [],
+            "tools": ["Traffic Analyser", "IDS/IPS Dashboard"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Assess Business Impact",
+            "description": "Determine which services are affected, current uptime status, and customer impact. Check SLA obligations and escalation triggers.",
+            "commands": [],
+            "tools": ["Monitoring Dashboard", "Status Page"],
+            "responsible_role": "Operations Manager"
+          }
+        ]
+      },
+      {
+        "name": "Containment",
+        "steps": [
+          {
+            "title": "Activate DDoS Mitigation Service",
+            "description": "Enable cloud-based DDoS protection or reroute traffic through scrubbing centres. Engage ISP upstream filtering if needed.",
+            "commands": [],
+            "tools": ["Cloudflare", "AWS Shield", "Akamai Prolexic"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Apply Rate Limiting & Geo-Blocking",
+            "description": "Implement aggressive rate limiting on affected endpoints. If attack traffic is geographically concentrated, apply temporary geo-blocking rules.",
+            "commands": ["iptables -A INPUT -p tcp --dport 443 -m connlimit --connlimit-above 50 -j DROP"],
+            "tools": ["Firewall", "Load Balancer", "CDN"],
+            "responsible_role": "Network Engineer"
+          },
+          {
+            "title": "Scale Infrastructure",
+            "description": "If cloud-hosted, auto-scale backend capacity to absorb residual attack traffic that passes through mitigation.",
+            "commands": [],
+            "tools": ["Cloud Auto-Scaling", "Load Balancer"],
+            "responsible_role": "Cloud Engineer"
+          }
+        ]
+      },
+      {
+        "name": "Eradication",
+        "steps": [
+          {
+            "title": "Fine-Tune Filtering Rules",
+            "description": "Analyse the scrubbed traffic to refine filtering rules. Identify and block traffic patterns unique to the attack without impacting legitimate users.",
+            "commands": [],
+            "tools": ["DDoS Mitigation Dashboard", "Traffic Analytics"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Blackhole Attacking ASNs",
+            "description": "If the attack originates primarily from specific ASNs or botnets, work with your ISP to implement BGP blackhole routing for those networks.",
+            "commands": [],
+            "tools": ["ISP Communication", "BGP Configuration"],
+            "responsible_role": "Network Engineer"
+          }
+        ]
+      },
+      {
+        "name": "Recovery",
+        "steps": [
+          {
+            "title": "Verify Service Restoration",
+            "description": "Confirm all services are fully operational. Check response times, error rates, and user experience from multiple geographic locations.",
+            "commands": ["curl -w '%{time_total}' -o /dev/null -s https://app.example.com"],
+            "tools": ["Synthetic Monitoring", "Real User Monitoring"],
+            "responsible_role": "Operations Engineer"
+          },
+          {
+            "title": "Communicate with Stakeholders",
+            "description": "Update the status page. Notify customers and stakeholders about the resolution. Provide a preliminary timeline and impact summary.",
+            "commands": [],
+            "tools": ["Status Page", "Email Communication"],
+            "responsible_role": "Incident Commander"
+          }
+        ]
+      },
+      {
+        "name": "Lessons Learned",
+        "steps": [
+          {
+            "title": "Review DDoS Resilience Architecture",
+            "description": "Evaluate CDN coverage, anycast deployment, auto-scaling policies, and DDoS protection service effectiveness. Identify gaps exposed by the attack.",
+            "commands": [],
+            "tools": ["Architecture Review", "CDN Analytics"],
+            "responsible_role": "Security Architect"
+          },
+          {
+            "title": "Update DDoS Response Runbook",
+            "description": "Document specific commands, contacts, and procedures that were effective. Update ISP and DDoS provider escalation contacts.",
+            "commands": [],
+            "tools": ["Runbook Repository", "Incident Documentation"],
+            "responsible_role": "Security Lead"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "PB-INSIDER-001",
+    "name": "Insider Threat Response",
+    "threat_category": "insider_threat",
+    "description": "Incident response playbook for insider threat incidents including data exfiltration by employees, privilege abuse, and unauthorized access to sensitive systems.",
+    "phases": [
+      {
+        "name": "Identification",
+        "steps": [
+          {
+            "title": "Review DLP & UEBA Alerts",
+            "description": "Examine Data Loss Prevention alerts and User & Entity Behavior Analytics anomalies. Look for unusual data access patterns, off-hours activity, and large data transfers.",
+            "commands": [],
+            "tools": ["DLP Console", "UEBA Dashboard", "SIEM"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Correlate User Activity",
+            "description": "Build a timeline of the suspect's activities across all systems: file access, email, cloud storage, VPN, physical access logs, and print logs.",
+            "commands": [],
+            "tools": ["SIEM Correlation", "CASB", "Physical Access Logs"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Engage Legal & HR",
+            "description": "Before taking containment actions, consult with Legal and HR to ensure the investigation follows proper procedures and preserves evidence admissibility.",
+            "commands": [],
+            "tools": ["Legal Counsel", "HR Department"],
+            "responsible_role": "Security Lead"
+          }
+        ]
+      },
+      {
+        "name": "Containment",
+        "steps": [
+          {
+            "title": "Restrict Access Quietly",
+            "description": "Reduce the suspect's access privileges without alerting them if the investigation is ongoing. Remove access to sensitive data stores and limit VPN/remote access.",
+            "commands": [],
+            "tools": ["IAM Console", "CASB Policies"],
+            "responsible_role": "Identity & Access Management"
+          },
+          {
+            "title": "Enable Enhanced Monitoring",
+            "description": "Deploy additional monitoring on the suspect's accounts and endpoints: keylogging (if legally permitted), screen recording, file access auditing, and email DLP scanning.",
+            "commands": [],
+            "tools": ["EDR Enhanced Monitoring", "DLP", "Email Archiving"],
+            "responsible_role": "Security Analyst"
+          },
+          {
+            "title": "Block Data Exfiltration Channels",
+            "description": "Block personal cloud storage, USB mass storage, personal email, and other data exfiltration channels for the suspect's accounts.",
+            "commands": [],
+            "tools": ["DLP Policies", "Endpoint Control", "Web Proxy"],
+            "responsible_role": "Security Engineer"
+          }
+        ]
+      },
+      {
+        "name": "Eradication",
+        "steps": [
+          {
+            "title": "Disable Accounts & Access",
+            "description": "Upon decision to act, immediately disable all user accounts, revoke VPN certificates, badge access, and recover any company devices.",
+            "commands": ["Disable-ADAccount -Identity suspect_user", "Revoke-AzureADUserAllRefreshToken -ObjectId <USER_ID>"],
+            "tools": ["Active Directory", "Azure AD", "Badge System"],
+            "responsible_role": "Identity & Access Management"
+          },
+          {
+            "title": "Audit Data Exposure",
+            "description": "Determine exactly what data was accessed, copied, or exfiltrated. Assess regulatory notification requirements (GDPR, HIPAA, PCI-DSS).",
+            "commands": [],
+            "tools": ["DLP Forensics", "Database Audit Logs", "Legal Review"],
+            "responsible_role": "Compliance Officer"
+          }
+        ]
+      },
+      {
+        "name": "Recovery",
+        "steps": [
+          {
+            "title": "Rotate Shared Credentials",
+            "description": "Change all shared credentials, API keys, and service accounts that the insider had access to.",
+            "commands": [],
+            "tools": ["Secrets Manager", "Credential Vault"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Review Access Controls",
+            "description": "Implement least-privilege access reviews for all similar roles. Ensure separation of duties prevents a single user from accessing and exfiltrating sensitive data.",
+            "commands": [],
+            "tools": ["IAM Review", "Access Certification"],
+            "responsible_role": "Security Architect"
+          }
+        ]
+      },
+      {
+        "name": "Lessons Learned",
+        "steps": [
+          {
+            "title": "Implement Behavioural Analytics",
+            "description": "Deploy or tune UEBA solutions to detect future insider threats earlier. Establish baseline behaviour profiles for privileged users.",
+            "commands": [],
+            "tools": ["UEBA Platform", "SIEM Behavioural Rules"],
+            "responsible_role": "Security Engineer"
+          },
+          {
+            "title": "Update Insider Threat Programme",
+            "description": "Review and update the insider threat programme including policies, detection capabilities, investigation procedures, and employee awareness.",
+            "commands": [],
+            "tools": ["Policy Review", "Training Programme"],
+            "responsible_role": "Security Lead"
+          }
+        ]
+      }
+    ]
+  }
+]
